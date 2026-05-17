@@ -1,151 +1,162 @@
 const User = require('../models/User');
 const Film = require('../models/Film');
 const Subscription = require('../models/Subscription');
-const WatchHistory = require('../models/WatchHistory');
 
+// Membuat class AppService, anggap ini sebagai "Pelayan" yang siap menerima perintah
 class AppService {
+    
     // --- USER & PROFIL ---
+    
+    // Perintah untuk mendaftarkan user baru ke database
     async tambahUser(data) { 
-        // Default: Tambah satu profil utama saat register
+        // Otomatis membuatkan profil pertama sesuai dengan nama yang didaftarkan
         data.profiles = [{ name: data.nama, isKids: false }];
-        return await new User(data).save(); 
+        return await new User(data).save(); // Simpan ke database
     }
+    
+    // Perintah untuk melihat semua user yang ada di database
     async ambilUsers() { return await User.find(); }
-    // Tambahkan/Pastikan fungsi ini ada di dalam class AppService
     
-async updateUserFull(userId, updateData) {
-    // runValidators: true memastikan email & password baru tetap dicek formatnya
-    return await User.findByIdAndUpdate(
-        userId, 
-        updateData, 
-        { new: true, runValidators: true }
-    );
-}
-    // --- UPDATE & DELETE USER ---
-async updateUserInfo(userId, newData) {
-    // Mencari berdasarkan ID dan mengupdate data nama/email/password
-    return await User.findByIdAndUpdate(userId, newData, { new: true });
-}
+    // Perintah untuk mengedit semua data user (termasuk validasi ulang)
+    async updateUserFull(userId, updateData) {
+        return await User.findByIdAndUpdate(
+            userId,         // Cari user berdasarkan ID
+            updateData,     // Data yang mau diubah
+            { new: true, runValidators: true } // Kembalikan data baru, dan cek kembali aturannya
+        );
+    }
 
-async hapusUser(userId) {
-    // Menghapus User sekaligus menghapus Langganannya agar database bersih
-    await Subscription.deleteMany({ user_id: userId });
-    return await User.findByIdAndDelete(userId);
-}
+    // Perintah untuk mengubah sedikit data user tanpa cek aturan ketat
+    async updateUserInfo(userId, newData) {
+        return await User.findByIdAndUpdate(userId, newData, { new: true });
+    }
 
-// --- MANAJEMEN PROFIL (Sub-dokumen) ---
-async tambahProfil(userId, profilBaru) {
-    return await User.findByIdAndUpdate(
-        userId,
-        { $push: { profiles: profilBaru } },
-        { new: true }
-    );
-}
+    // Perintah untuk menghapus user dari database selamanya
+    async hapusUser(userId) {
+        // Hapus dulu semua riwayat langganannya biar bersih
+        await Subscription.deleteMany({ user_id: userId });
+        // Baru hapus usernya
+        return await User.findByIdAndDelete(userId);
+    }
 
-async hapusProfil(userId, profileId) {
-    return await User.findByIdAndUpdate(
-        userId,
-        { $pull: { profiles: { _id: profileId } } },
-        { new: true }
-    );
-}
+    // --- MANAJEMEN PROFIL ---
+    
+    // Menambahkan sub-profil baru di dalam akun user (contoh: Profil Istri, Profil Anak)
+    async tambahProfil(userId, profilBaru) {
+        return await User.findByIdAndUpdate(
+            userId,
+            { $push: { profiles: profilBaru } }, // $push artinya "masukkan ke dalam daftar list"
+            { new: true }
+        );
+    }
 
-// --- UPDATE SUBSCRIPTION ---
-async batalkanLangganan(userId) {
-    // Bukan menghapus datanya, tapi mengubah statusnya menjadi 'Cancelled'
-    await Subscription.findOneAndUpdate(
-  { user_id: userId },
-  { status: 'Cancelled' },
-  { returnDocument: 'after' } // <--- Gunakan ini sesuai saran warning
-);
-}
+    // Menghapus salah satu sub-profil
+    async hapusProfil(userId, profileId) {
+        return await User.findByIdAndUpdate(
+            userId,
+            { $pull: { profiles: { _id: profileId } } }, // $pull artinya "tarik/hapus dari daftar list"
+            { new: true }
+        );
+    }
 
-        // --- FILM & REKOMENDASI ---
+    // --- UPDATE SUBSCRIPTION ---
+    
+    // Mengubah status langganan user menjadi "Cancelled" (Batal)
+    async batalkanLangganan(userId) {
+        await Subscription.findOneAndUpdate(
+            { user_id: userId },     // Cari langganan milik user ini
+            { status: 'Cancelled' }, // Ubah statusnya
+            { returnDocument: 'after' }
+        );
+    }
+
+    // --- FILM & REKOMENDASI ---
+    
+    // Mengambil semua daftar film dari database
     async ambilFilms() { return await Film.find(); }
-        // Di dalam class AppService
+    
+    // Mengecek apakah email dan password cocok (untuk Login)
     async login(email, password) {
-        // Mencari user berdasarkan email dan password
-        const user = await User.findOne({ email: email, password: password });
-        return user; 
+        // Cari 1 data yang email dan password-nya sama persis dengan yang diketik
+        return await User.findOne({ email: email, password: password }); 
     }
+
+    // Menampilkan 2 film acak sebagai rekomendasi
     async getRecommendation(userId) {
-        const history = await WatchHistory.find({ user_id: userId }).populate('film_id');
-        if (history.length === 0) return await Film.find().limit(2);
-
-        const genres = history.map(h => h.film_id.genre);
-        const favoriteGenre = genres.sort((a, b) =>
-            genres.filter(v => v === a).length - genres.filter(v => v === b).length
-        ).pop();
-
-        return await Film.find({ genre: favoriteGenre }).limit(2);
+        return await Film.find().limit(2); // Ambil data film, batasi cuma 2 saja
     }
     
-    // Tambahkan di dalam class AppService
+    // Melihat semua orang yang sedang/pernah berlangganan
     async ambilSemuaLangganan() {
-    // .populate('user_id') digunakan untuk mengambil data user berdasarkan ID yang tersimpan
-    return await Subscription.find().populate('user_id');
+        // populate() fungsinya mengambil data lengkap user pembelinya, bukan cuma ID-nya saja
+        return await Subscription.find().populate('user_id');
     }
 
     // --- SUBSCRIPTION ---
-   async buatSubscription(data) {
-    // 1. CEK APAKAH USER SUDAH PUNYA LANGGANAN AKTIF
-    const existingSub = await Subscription.findOne({ 
-        user_id: data.userId, 
-        status: 'Active' 
-    });
+    
+    // Membuat langganan baru untuk user
+    async buatSubscription(data) {
+        // Cek dulu, jangan-jangan user ini masih punya langganan yang aktif
+        const existingSub = await Subscription.findOne({ 
+            user_id: data.userId, 
+            status: 'Active' 
+        });
 
-    if (existingSub) {
-        // Melempar error agar bisa ditangkap di Main.js
-        throw new Error("User ini masih memiliki langganan aktif. Tidak bisa membeli lagi.");
-    }
-
-    // 2. JIKA TIDAK ADA, LANJUTKAN PROSES SIMPAN
-    const start = new Date();
-    const end = new Date();
-    end.setDate(start.getDate() + 30);
-
-    return await new Subscription({
-        user_id: data.userId,
-        type: data.type,
-        payment: data.payment,
-        start_date: start,
-        end_date: end,
-        status: 'Active'
-    }).save();
-}
-
-    async getSubscriptionInfo(userId) {
-        const sub = await Subscription.findOne({ user_id: userId, status: 'Active', end_date: { $gte: new Date() } });
-        if (!sub) return null;
-        
-        const diffDays = Math.ceil((sub.end_date - new Date()) / (1000 * 60 * 60 * 24));
-        return { type: sub.type, daysLeft: diffDays };
-    }
-
-    // --- STREAMING PROGRESS ---
-    async saveProgress(userId, filmId, minutes) {
-        await WatchHistory.findOneAndUpdate(
-            { user_id: userId, film_id: filmId },
-            { lastMinutes: minutes },
-            { upsert: true }
-        );
-    }
-    // --- FUNGSI AGGREGATE SIMPEL ---
-async ambilStatistikGenre() {
-    return await Film.aggregate([
-        {
-            // Tahap 1: Kelompokkan film berdasarkan "genre"
-            $group: {
-                _id: "$genre",           // Kelompokkan data yang genrenya sama
-                totalFilm: { $sum: 1 }   // Setiap ada 1 film, tambahkan angka 1 (menghitung jumlah)
-            }
-        },
-        {
-            // Tahap 2: Urutkan dari jumlah film terbanyak
-            $sort: { totalFilm: -1 }
+        if (existingSub) {
+            throw new Error("User ini masih memiliki langganan aktif. Tidak bisa membeli lagi."); // Tolak kalau masih aktif
         }
-    ]);
-}
+
+        // Hitung masa aktif (Beli hari ini, expired 30 hari lagi)
+        const start = new Date();
+        const end = new Date();
+        end.setDate(start.getDate() + 30); 
+
+        // Simpan data langganan ke database
+        return await new Subscription({
+            user_id: data.userId,
+            type: data.type,
+            payment: data.payment,
+            start_date: start,
+            end_date: end,
+            status: 'Active'
+        }).save();
+    }
+
+    // Mengambil info langganan user yang sedang login
+    async getSubscriptionInfo(userId) {
+        // Cari langganan yang aktif dan belum kadaluarsa
+        const sub = await Subscription.findOne({ user_id: userId, status: 'Active', end_date: { $gte: new Date() } });
+        if (!sub) return null; // Kalau nggak punya, kembalikan kosong (null)
+        
+        // Hitung sisa harinya pake rumus matematika waktu (milliseconds -> days)
+        const diffDays = Math.ceil((sub.end_date - new Date()) / (1000 * 60 * 60 * 24));
+        return { type: sub.type, daysLeft: diffDays }; // Kasih tau tipe paket dan sisa hari
+    }
+
+    // Menyimpan riwayat nonton (Dikosongkan sesuai permintaan modifikasi agar tak error)
+    async saveProgress(userId, filmId, minutes) {
+        return; // Tidak melakukan apa-apa
+    }
+
+    // --- FUNGSI AGGREGATE SIMPEL ---
+    
+    // Menghitung statistik (contoh: Genre Action ada 10 film, Drama ada 5 film, dll)
+    async ambilStatistikGenre() {
+        return await Film.aggregate([
+            {
+                // Kelompokkan data berdasarkan genre, lalu hitung jumlahnya (+1 tiap ketemu)
+                $group: {
+                    _id: "$genre", 
+                    totalFilm: { $sum: 1 } 
+                }
+            },
+            {
+                // Urutkan dari yang jumlah filmnya paling banyak ke paling sedikit (-1)
+                $sort: { totalFilm: -1 }
+            }
+        ]);
+    }
 }
 
+// Mengekspor semua "pelayanan" ini agar bisa dipanggil oleh menu utama
 module.exports = new AppService();
