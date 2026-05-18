@@ -22,13 +22,13 @@ class AppService {
         return await User.findByIdAndUpdate(
             userId,         // Cari user berdasarkan ID
             updateData,     // Data yang mau diubah
-            { new: true, runValidators: true } // Kembalikan data baru, dan cek kembali aturannya
+            { returnDocument: 'after', runValidators: true } // Kembalikan data baru, dan cek kembali aturannya
         );
     }
 
     // Perintah untuk mengubah sedikit data user tanpa cek aturan ketat
     async updateUserInfo(userId, newData) {
-        return await User.findByIdAndUpdate(userId, newData, { new: true });
+        return await User.findByIdAndUpdate(userId, newData, { returnDocument: 'after' });
     }
 
     // Perintah untuk menghapus user dari database selamanya
