@@ -11,6 +11,7 @@ const UserModel = require('./models/User');
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
 // Fungsi tambahan untuk menggambar garis loading (progress bar) saat nonton film
+
 const drawProgressBar = (current, total) => {
     const size = 20; // Panjang garis progress bar
     const progress = Math.min(size, Math.round((size * current) / total)); // Hitung berapa yang sudah diisi
@@ -18,36 +19,8 @@ const drawProgressBar = (current, total) => {
     return `[${"=".repeat(progress)}${"-".repeat(size - progress)}] ${Math.round((current / total) * 100)}%`;
 };
 
-// Fungsi animasi sederhana yang pura-pura sedang mutar film
-async function startStreaming(film, startFrom, userId) {
-    console.clear(); // Bersihkan layar
-    console.log(`\n🎬 Sedang Memutar: ${film.judul}`);
-    console.log(`Genre: ${film.genre} | Durasi: ${film.duration} menit`);
-    
-    let currentMin = startFrom;
-    const steps = 5;  // Film dibagi jadi 5 tahap lompatan menit biar simulasi cepet
-    const increment = Math.ceil((film.duration - startFrom) / steps);
+// OUTPUT 1: PROGRAM UTAMA DIMULAI (HALAMAN AWAL SISTEM)
 
-    for (let i = 0; i <= steps; i++) {
-        process.stdout.write('\x1B[2J\x1B[0f'); // Kode unik terminal untuk me-refresh layar
-        console.log(`\n🎬 Sedang Memutar: ${film.judul}`);
-        console.log(`\nMenit ke-${currentMin} dari ${film.duration} menit`);
-        console.log(drawProgressBar(currentMin, film.duration)); // Tampilkan garis progress
-        
-        await new Promise(res => setTimeout(res, 1500));  // Jeda waktu (delay) 1.5 detik tiap lompatan
-        
-        currentMin += increment; // Tambah menitnya
-        if (currentMin > film.duration) currentMin = film.duration; // Mentok di durasi maksimal
-        
-        await appServiceTools.saveProgress(userId, film._id, currentMin); // Simpan progress (sudah dinonaktifkan di service)
-    }
-    console.log("\n✅ Selesai menonton! Simulasi pemutaran selesai.");
-    await rl.question("\nTekan Enter untuk kembali...");
-}
-
-// ==========================================
-// PROGRAM UTAMA DIMULAI DI SINI
-// ==========================================
 async function main() {
     await dbConfig.connect(); // Nyalakan koneksi database
     
@@ -61,7 +34,8 @@ async function main() {
         // Minta user mengetik pilihan
         const mainChoice = await rl.question("Pilih Menu: ");
 
-        // JIKA USER PILIH MENU ADMIN
+        // OUTPUT JIKA USER PILIH MENU ADMIN (MENU 1)
+
         if (mainChoice === '1') {
             console.log("\n--- MENU ADMIN ---");
             console.log("a. Registrasi User Baru");
@@ -227,7 +201,8 @@ async function main() {
                 await rl.question("\nTekan Enter untuk kembali...");
             }
 
-        // JIKA USER PILIH MASUK APLIKASI / LOGIN
+        // OUTPUT JIKA USER PILIH MASUK APLIKASI / LOGIN (MENU 2)
+        
         } else if (mainChoice === '2') {
             console.log("\n--- LOGIN USER ---");
             const emailInput = await rl.question("Email   : ");
@@ -297,9 +272,33 @@ async function main() {
                     const fIdx = parseInt(await rl.question("\nPilih Film (Nomor): ")) - 1;
                     const filmSelected = films[fIdx];
 
+                    // SIMULASI ANIMASI STREAMING DIJALANKAN DI SINI
                     if (filmSelected) {
-                        await startStreaming(filmSelected, 0, currentUser._id); // Mainkan simulasi film
+                        console.clear(); // Bersihkan layar terminal
+                        console.log(`\n🎬 Sedang Memutar: ${filmSelected.judul}`);
+                        console.log(`Genre: ${filmSelected.genre} | Durasi: ${filmSelected.duration} menit`);
+                        
+                        let currentMin = 0;
+                        const steps = 5;  // Film dibagi jadi 5 tahap lompatan menit biar simulasi cepet
+                        const increment = Math.ceil((filmSelected.duration - 0) / steps);
+
+                        for (let i = 0; i <= steps; i++) {
+                            process.stdout.write('\x1B[2J\x1B[0f'); // Kode unik terminal untuk me-refresh layar
+                            console.log(`\n🎬 Sedang Memutar: ${filmSelected.judul}`);
+                            console.log(`\nMenit ke-${currentMin} dari ${filmSelected.duration} menit`);
+                            console.log(drawProgressBar(currentMin, filmSelected.duration)); // Tampilkan garis progress
+                            
+                            await new Promise(res => setTimeout(res, 1500));  // Jeda waktu (delay) 1.5 detik tiap lompatan
+                            
+                            currentMin += increment; // Tambah menitnya
+                            if (currentMin > filmSelected.duration) currentMin = filmSelected.duration; // Mentok di durasi maksimal
+                            
+                            await appServiceTools.saveProgress(currentUser._id, filmSelected._id, currentMin); // Simpan progress
+                        }
+                        console.log("\n✅ Selesai menonton! Simulasi pemutaran selesai.");
+                        await rl.question("\nTekan Enter untuk kembali...");
                     }
+
                 } else if (menu === '2') {
                     // Fitur edit profil/ganti nama/password
                     console.log("\n--- UPDATE INFORMASI AKUN ---");
