@@ -98,7 +98,7 @@ async function main() {
                     "Standard": { harga: "Rp 153.000", fitur: "1080p, 2 Perangkat Bersamaan" },
                     "Premium":  { harga: "Rp 186.000", fitur: "4K+HDR, 4 Perangkat Bersamaan" }
                 };
-
+                // display package form 
                 const pks = ["Mobile", "Basic", "Standard", "Premium"];
                 console.log("\n--- PILIHAN PAKET ---");
                 pks.forEach((p, i) => {
